@@ -13,6 +13,16 @@
     h2,h3 { margin: 10px 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 5px 0; }
+
+    /* Estilos para móviles */
+    @media (max-width: 600px) {
+      body { margin: 10px; }
+      #reader { width: 100%; } /* Ajusta el ancho del lector al 100% */
+      input { width: 100%; } /* Ajusta el ancho de los inputs al 100% */
+      button { width: 100%; } /* Ajusta el ancho de los botones al 100% */
+      h2, h3 { font-size: 1.5em; } /* Aumenta el tamaño de los encabezados */
+      #pantalla-precio { margin-top: 10px; } /* Reduce el margen superior */
+    }
   </style>
 </head>
 <body>
@@ -127,5 +137,6 @@
   </script>
 </body>
 </html>
+
 
 
