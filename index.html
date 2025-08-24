@@ -5,67 +5,93 @@
   <title>Calculadora de Precio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
     #scanner { width: 100%; max-width: 400px; margin: auto; border: 2px solid #333; }
-    #resultado, #scan-result { font-weight: bold; margin-top: 10px; }
+    #resultado, #scan-result, #carrito-total { font-weight: bold; margin-top: 10px; }
+    .pantalla { display: none; }
+    .visible { display: block; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    input { padding: 5px; font-size: 16px; }
   </style>
 </head>
 <body>
-  <h2>Calcular Precio por Peso</h2>
+  <h2>Calculadora de Precio por Peso</h2>
 
-  <!-- Escáner -->
-  <div id="scanner"></div>
-  <p id="scan-result">Esperando escaneo...</p>
+  <!-- Pantalla de escaneo -->
+  <div id="pantalla-camara" class="pantalla visible">
+    <div id="scanner"></div>
+    <p id="scan-result">Esperando escaneo...</p>
+  </div>
 
-  <!-- Entrada de peso -->
-  <label>Peso (g):</label>
-  <input type="number" id="peso" step="1"><br><br>
-  <button onclick="calcular()">Calcular</button>
-  <p id="resultado"></p>
+  <!-- Pantalla de producto -->
+  <div id="pantalla-producto" class="pantalla">
+    <p id="producto-info"></p>
+    <label>Peso (g):</label>
+    <input type="number" id="peso" step="1"><br><br>
+    <button onclick="volverACamara()">Volver a Cámara</button>
+    <button onclick="agregarProducto()">Agregar a la Lista</button>
+    <p id="resultado"></p>
+  </div>
+
+  <!-- Carrito -->
+  <h3>Carrito</h3>
+  <ul id="carrito"></ul>
+  <p id="carrito-total">Total: $0.00</p>
 
   <script>
-    // Base de productos registrados
     const productos = {
-      "123456789012": { nombre: "Manzanas", precio: 500 },   // precio por kilo
+      "123456789012": { nombre: "Manzanas", precio: 500 },
       "987654321098": { nombre: "Naranjas", precio: 400 },
       "qrcode123":    { nombre: "Bananas", precio: 350 }
     };
 
     let productoActual = null;
+    let carrito = [];
 
-    // Inicializar Quagga para leer códigos de barras
+    // Cambiar pantalla
+    function mostrarPantalla(id) {
+      document.querySelectorAll(".pantalla").forEach(p => p.classList.remove("visible"));
+      document.getElementById(id).classList.add("visible");
+    }
+
+    // Inicializar Quagga
     Quagga.init({
       inputStream: {
         type: "LiveStream",
-        constraints: {
-          facingMode: "environment" // usar cámara trasera
-        }
+        constraints: { facingMode: "environment" }
       },
       decoder: {
         readers: ["ean_reader", "upc_reader", "code128_reader", "code39_reader", "ean_8_reader"]
       }
     }, function(err) {
-      if (err) {
-        console.error(err);
-        return;
-      }
+      if (err) { console.error(err); return; }
       Quagga.start();
     });
 
-    // Detectar código de barras
+    // Cuando detecta un código
     Quagga.onDetected(function(result) {
       const code = result.codeResult.code;
       if (productos[code]) {
         productoActual = productos[code];
-        document.getElementById("scan-result").innerText = 
+        document.getElementById("producto-info").innerText =
           "Producto: " + productoActual.nombre + " - $" + productoActual.precio + " por kilo";
+        mostrarPantalla("pantalla-producto");
+        Quagga.stop(); // detener cámara temporalmente
       } else {
         document.getElementById("scan-result").innerText = "Código no registrado: " + code;
       }
     });
 
-    // Calcular precio
-    function calcular() {
+    // Volver a cámara
+    function volverACamara() {
+      mostrarPantalla("pantalla-camara");
+      document.getElementById("peso").value = "";
+      document.getElementById("resultado").innerText = "";
+      Quagga.start(); // reactivar cámara
+    }
+
+    // Agregar producto al carrito
+    function agregarProducto() {
       if (!productoActual) {
         alert("Primero escanea un producto válido");
         return;
@@ -76,11 +102,23 @@
         return;
       }
 
-      let kilos = gramos / 1000; // convertir gramos a kilos
+      let kilos = gramos / 1000;
       let total = kilos * productoActual.precio;
 
-      document.getElementById("resultado").innerText = 
-        "Total a pagar por " + gramos + " g de " + productoActual.nombre + ": $" + total.toFixed(2);
+      // Guardar en carrito
+      carrito.push({ nombre: productoActual.nombre, gramos, total });
+
+      // Mostrar en lista
+      let li = document.createElement("li");
+      li.innerText = productoActual.nombre + " - " + gramos + " g - $" + total.toFixed(2);
+      document.getElementById("carrito").appendChild(li);
+
+      // Actualizar total general
+      let suma = carrito.reduce((acc, p) => acc + p.total, 0);
+      document.getElementById("carrito-total").innerText = "Total: $" + suma.toFixed(2);
+
+      // Limpiar y volver a cámara
+      volverACamara();
     }
   </script>
 </body>
