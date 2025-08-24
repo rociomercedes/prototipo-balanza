@@ -1,62 +1,129 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Calculadora de Precio</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    #reader { width: 300px; margin: auto; }
+    #pantalla-precio { display: none; margin-top: 20px; }
+    input { padding: 5px; margin: 5px; width: 150px; text-align: center; }
+    button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    h2,h3 { margin: 10px 0; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; }
+  </style>
 </head>
 <body>
   <h2>Calcular Precio por Peso</h2>
 
   <!-- Escáner -->
-  <div id="reader" style="width:300px;"></div>
-  <p id="scan-result">Esperando escaneo...</p>
+  <div id="scanner">
+    <div id="reader"></div>
+    <p id="scan-result">Esperando escaneo...</p>
+  </div>
 
-  <!-- Entrada de peso -->
-  <label>Peso (kg):</label>
-  <input type="number" id="peso" step="0.01"><br><br>
-  <button onclick="calcular()">Calcular</button>
-  <p id="resultado"></p>
+  <!-- Pantalla de producto -->
+  <div id="pantalla-precio">
+    <h3 id="producto-info"></h3>
+    <label>Peso (gramos):</label>
+    <input type="number" id="peso" placeholder="Ej: 250"><br>
+    <h3>Total: $<span id="total">0</span></h3>
+    <button onclick="volverEscanear()">Volver a escanear</button>
+    <button onclick="agregarProducto()">Agregar a la suma</button>
+  </div>
+
+  <!-- Carrito -->
+  <h2>Carrito</h2>
+  <ul id="carrito"></ul>
+  <h3>Total acumulado: $<span id="suma">0</span></h3>
 
   <script>
-    // Base de productos registrados
     const productos = {
-      "123456789": { nombre: "Manzanas", precio: 500 },  // código -> precio por kilo
+      "123456789": { nombre: "Manzanas", precio: 500 },
       "987654321": { nombre: "Naranjas", precio: 400 },
       "qrcode123": { nombre: "Bananas", precio: 350 }
     };
 
     let productoActual = null;
+    let suma = 0;
+    let carrito = [];
+    let scanner;
 
     // Inicializar escáner
-    function onScanSuccess(decodedText, decodedResult) {
-      if(productos[decodedText]){
+    function iniciarScanner() {
+      document.getElementById("scanner").style.display = "block";
+      document.getElementById("pantalla-precio").style.display = "none";
+
+      scanner = new Html5Qrcode("reader");
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess
+      ).catch(err => {
+        console.error("Error al iniciar cámara:", err);
+      });
+    }
+
+    // Al detectar un código
+    function onScanSuccess(decodedText) {
+      if (productos[decodedText]) {
         productoActual = productos[decodedText];
-        document.getElementById("scan-result").innerText = 
-          "Producto: " + productoActual.nombre + " - $" + productoActual.precio + " por kilo";
+        document.getElementById("producto-info").innerText =
+          productoActual.nombre + " - $" + productoActual.precio + " por kilo";
+        document.getElementById("scanner").style.display = "none";
+        document.getElementById("pantalla-precio").style.display = "block";
+        document.getElementById("peso").value = "";
+        document.getElementById("total").innerText = "0";
+        scanner.stop(); // detener cámara mientras se carga el producto
       } else {
-        document.getElementById("scan-result").innerText = 
+        document.getElementById("scan-result").innerText =
           "Código no registrado: " + decodedText;
       }
     }
 
-    const html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start(
-      { facingMode: "environment" }, // usar cámara trasera
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
+    // Calcular precio en vivo
+    document.getElementById("peso").addEventListener("input", function() {
+      if (productoActual) {
+        let gramos = parseFloat(this.value) || 0;
+        let total = (gramos / 1000) * productoActual.precio;
+        document.getElementById("total").innerText = total.toFixed(2);
+      }
+    });
 
-    // Calcular precio
-    function calcular() {
-      if(!productoActual){
-        alert("Primero escanea un producto válido");
+    // Volver a escanear
+    function volverEscanear() {
+      scanner.clear();
+      iniciarScanner();
+    }
+
+    // Agregar producto al carrito
+    function agregarProducto() {
+      let gramos = parseFloat(document.getElementById("peso").value);
+      if (isNaN(gramos) || gramos <= 0) {
+        alert("Ingrese un peso válido en gramos");
         return;
       }
-      let peso = parseFloat(document.getElementById("peso").value);
-      let total = peso * productoActual.precio;
-      document.getElementById("resultado").innerText = 
-        "Total a pagar por " + peso + " kg de " + productoActual.nombre + ": $" + total.toFixed(2);
+
+      let total = (gramos / 1000) * productoActual.precio;
+      carrito.push({ nombre: productoActual.nombre, gramos, total });
+
+      // Actualizar carrito
+      let lista = document.getElementById("carrito");
+      let li = document.createElement("li");
+      li.innerText = `${productoActual.nombre} - ${gramos} g - $${total.toFixed(2)}`;
+      lista.appendChild(li);
+
+      // Actualizar suma
+      suma += total;
+      document.getElementById("suma").innerText = suma.toFixed(2);
+
+      volverEscanear();
     }
+
+    // Iniciar cámara al cargar
+    window.onload = iniciarScanner;
   </script>
 </body>
 </html>
