@@ -6,12 +6,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
-    #scanner { width: 100%; max-width: 400px; margin: auto; border: 2px solid #333; }
+    #scanner { width: 100%; max-width: 400px; margin: auto; border: 2px solid #333; min-height: 250px; }
     #resultado, #scan-result, #carrito-total { font-weight: bold; margin-top: 10px; }
     .pantalla { display: none; }
     .visible { display: block; }
-    button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    button { margin: 5px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
     input { padding: 5px; font-size: 16px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; display: flex; justify-content: space-between; align-items: center; }
+    .eliminar { background: red; color: white; border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -55,18 +58,40 @@
     }
 
     // Inicializar Quagga
-    Quagga.init({
-      inputStream: {
-        type: "LiveStream",
-        constraints: { facingMode: "environment" }
-      },
-      decoder: {
-        readers: ["ean_reader", "upc_reader", "code128_reader", "code39_reader", "ean_8_reader"]
-      }
-    }, function(err) {
-      if (err) { console.error(err); return; }
-      Quagga.start();
-    });
+    function iniciarCamara() {
+      Quagga.init({
+        inputStream: {
+          type: "LiveStream",
+          constraints: {
+            facingMode: "environment", // cámara trasera
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 }
+          }
+        },
+        locator: {
+          patchSize: "medium",
+          halfSample: true
+        },
+        numOfWorkers: navigator.hardwareConcurrency || 2,
+        decoder: {
+          readers: [
+            "ean_reader", 
+            "upc_reader", 
+            "code128_reader", 
+            "code39_reader", 
+            "ean_8_reader"
+          ]
+        },
+        locate: true
+      }, function(err) {
+        if (err) {
+          console.error("Error inicializando Quagga:", err);
+          document.getElementById("scan-result").innerText = "Error al iniciar cámara.";
+          return;
+        }
+        Quagga.start();
+      });
+    }
 
     // Cuando detecta un código
     Quagga.onDetected(function(result) {
@@ -87,7 +112,8 @@
       mostrarPantalla("pantalla-camara");
       document.getElementById("peso").value = "";
       document.getElementById("resultado").innerText = "";
-      Quagga.start(); // reactivar cámara
+      Quagga.stop();
+      iniciarCamara(); // reactivar cámara
     }
 
     // Agregar producto al carrito
@@ -105,21 +131,37 @@
       let kilos = gramos / 1000;
       let total = kilos * productoActual.precio;
 
-      // Guardar en carrito
-      carrito.push({ nombre: productoActual.nombre, gramos, total });
+      let item = { nombre: productoActual.nombre, gramos, total };
+      carrito.push(item);
 
-      // Mostrar en lista
-      let li = document.createElement("li");
-      li.innerText = productoActual.nombre + " - " + gramos + " g - $" + total.toFixed(2);
-      document.getElementById("carrito").appendChild(li);
-
-      // Actualizar total general
-      let suma = carrito.reduce((acc, p) => acc + p.total, 0);
-      document.getElementById("carrito-total").innerText = "Total: $" + suma.toFixed(2);
-
-      // Limpiar y volver a cámara
+      renderCarrito();
       volverACamara();
     }
+
+    // Renderizar carrito
+    function renderCarrito() {
+      let lista = document.getElementById("carrito");
+      lista.innerHTML = "";
+
+      carrito.forEach((item, index) => {
+        let li = document.createElement("li");
+        li.innerHTML = `${item.nombre} - ${item.gramos} g - $${item.total.toFixed(2)}
+                        <button class="eliminar" onclick="eliminarProducto(${index})">❌</button>`;
+        lista.appendChild(li);
+      });
+
+      let suma = carrito.reduce((acc, p) => acc + p.total, 0);
+      document.getElementById("carrito-total").innerText = "Total: $" + suma.toFixed(2);
+    }
+
+    // Eliminar producto del carrito
+    function eliminarProducto(index) {
+      carrito.splice(index, 1);
+      renderCarrito();
+    }
+
+    // Iniciar cámara apenas carga la página
+    window.addEventListener("load", iniciarCamara);
   </script>
 </body>
 </html>
