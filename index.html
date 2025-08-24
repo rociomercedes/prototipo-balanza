@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Calculadora de Precio</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+  <h2>Calcular Precio por Peso</h2>
+
+  <!-- Escáner -->
+  <div id="reader" style="width:300px;"></div>
+  <p id="scan-result">Esperando escaneo...</p>
+
+  <!-- Entrada de peso -->
+  <label>Peso (kg):</label>
+  <input type="number" id="peso" step="0.01"><br><br>
+  <button onclick="calcular()">Calcular</button>
+  <p id="resultado"></p>
+
+  <script>
+    // Base de productos registrados
+    const productos = {
+      "123456789": { nombre: "Manzanas", precio: 500 },  // código -> precio por kilo
+      "987654321": { nombre: "Naranjas", precio: 400 },
+      "qrcode123": { nombre: "Bananas", precio: 350 }
+    };
+
+    let productoActual = null;
+
+    // Inicializar escáner
+    function onScanSuccess(decodedText, decodedResult) {
+      if(productos[decodedText]){
+        productoActual = productos[decodedText];
+        document.getElementById("scan-result").innerText = 
+          "Producto: " + productoActual.nombre + " - $" + productoActual.precio + " por kilo";
+      } else {
+        document.getElementById("scan-result").innerText = 
+          "Código no registrado: " + decodedText;
+      }
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" }, // usar cámara trasera
+      { fps: 10, qrbox: 250 },
+      onScanSuccess
+    );
+
+    // Calcular precio
+    function calcular() {
+      if(!productoActual){
+        alert("Primero escanea un producto válido");
+        return;
+      }
+      let peso = parseFloat(document.getElementById("peso").value);
+      let total = peso * productoActual.precio;
+      document.getElementById("resultado").innerText = 
+        "Total a pagar por " + peso + " kg de " + productoActual.nombre + ": $" + total.toFixed(2);
+    }
+  </script>
+</body>
+</html>
