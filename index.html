@@ -1,167 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Calculadora de Precio</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Productos</title>
+  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
-    #scanner { width: 100%; max-width: 400px; margin: auto; border: 2px solid #333; min-height: 250px; }
-    #resultado, #scan-result, #carrito-total { font-weight: bold; margin-top: 10px; }
-    .pantalla { display: none; }
-    .visible { display: block; }
-    button { margin: 5px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
-    input { padding: 5px; font-size: 16px; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 5px 0; display: flex; justify-content: space-between; align-items: center; }
-    .eliminar { background: red; color: white; border: none; border-radius: 5px; padding: 4px 8px; cursor: pointer; }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    #scanner, #pantalla-precio { display: none; }
+    #pantalla-precio { margin-top: 20px; }
+    input { padding: 5px; margin: 5px; width: 150px; text-align: center; }
+    button { padding: 10px 15px; margin: 5px; }
+    h2 { margin: 10px 0; }
   </style>
 </head>
 <body>
-  <h2>Calculadora de Precio por Peso</h2>
 
-  <!-- Pantalla de escaneo -->
-  <div id="pantalla-camara" class="pantalla visible">
-    <div id="scanner"></div>
-    <p id="scan-result">Esperando escaneo...</p>
+  <h1>Calculadora de Productos</h1>
+  <div id="scanner"></div>
+
+  <div id="pantalla-precio">
+    <h2>Producto Escaneado:</h2>
+    <p id="codigo"></p>
+    <label>Peso (gramos): </label>
+    <input type="number" id="peso" placeholder="ej: 250"><br>
+    <label>Precio por kilo: </label>
+    <input type="number" id="precio" placeholder="ej: 1200"><br>
+    <h3>Total: $<span id="total">0</span></h3>
+    <button onclick="volverEscanear()">Volver a escanear</button>
+    <button onclick="agregarProducto()">Agregar a la suma</button>
   </div>
 
-  <!-- Pantalla de producto -->
-  <div id="pantalla-producto" class="pantalla">
-    <p id="producto-info"></p>
-    <label>Peso (g):</label>
-    <input type="number" id="peso" step="1"><br><br>
-    <button onclick="volverACamara()">Volver a Cámara</button>
-    <button onclick="agregarProducto()">Agregar a la Lista</button>
-    <p id="resultado"></p>
-  </div>
-
-  <!-- Carrito -->
-  <h3>Carrito</h3>
-  <ul id="carrito"></ul>
-  <p id="carrito-total">Total: $0.00</p>
+  <h2>Suma de productos: $<span id="suma">0</span></h2>
 
   <script>
-    const productos = {
-      "123456789012": { nombre: "Manzanas", precio: 500 },
-      "987654321098": { nombre: "Naranjas", precio: 400 },
-      "qrcode123":    { nombre: "Bananas", precio: 350 }
-    };
+    let suma = 0;
+    let scanner;
 
-    let productoActual = null;
-    let carrito = [];
+    // Inicializa el escáner
+    function iniciarScanner() {
+      document.getElementById("pantalla-precio").style.display = "none";
+      document.getElementById("scanner").style.display = "block";
 
-    // Cambiar pantalla
-    function mostrarPantalla(id) {
-      document.querySelectorAll(".pantalla").forEach(p => p.classList.remove("visible"));
-      document.getElementById(id).classList.add("visible");
-    }
-
-    // Inicializar Quagga
-    function iniciarCamara() {
-      Quagga.init({
-        inputStream: {
-          type: "LiveStream",
-          constraints: {
-            facingMode: "environment", // cámara trasera
-            width: { min: 640, ideal: 1280 },
-            height: { min: 480, ideal: 720 }
-          }
+      scanner = new Html5Qrcode("scanner");
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          mostrarPantallaPrecio(decodedText);
+          scanner.stop(); // detener cámara al escanear
         },
-        locator: {
-          patchSize: "medium",
-          halfSample: true
-        },
-        numOfWorkers: navigator.hardwareConcurrency || 2,
-        decoder: {
-          readers: [
-            "ean_reader", 
-            "upc_reader", 
-            "code128_reader", 
-            "code39_reader", 
-            "ean_8_reader"
-          ]
-        },
-        locate: true
-      }, function(err) {
-        if (err) {
-          console.error("Error inicializando Quagga:", err);
-          document.getElementById("scan-result").innerText = "Error al iniciar cámara.";
-          return;
-        }
-        Quagga.start();
+        (error) => { /* ignoramos errores de lectura */ }
+      ).catch(err => {
+        console.error("Error al iniciar cámara:", err);
       });
     }
 
-    // Cuando detecta un código
-    Quagga.onDetected(function(result) {
-      const code = result.codeResult.code;
-      if (productos[code]) {
-        productoActual = productos[code];
-        document.getElementById("producto-info").innerText =
-          "Producto: " + productoActual.nombre + " - $" + productoActual.precio + " por kilo";
-        mostrarPantalla("pantalla-producto");
-        Quagga.stop(); // detener cámara temporalmente
-      } else {
-        document.getElementById("scan-result").innerText = "Código no registrado: " + code;
-      }
-    });
-
-    // Volver a cámara
-    function volverACamara() {
-      mostrarPantalla("pantalla-camara");
+    // Muestra la pantalla de precio
+    function mostrarPantallaPrecio(codigo) {
+      document.getElementById("scanner").style.display = "none";
+      document.getElementById("pantalla-precio").style.display = "block";
+      document.getElementById("codigo").innerText = codigo;
       document.getElementById("peso").value = "";
-      document.getElementById("resultado").innerText = "";
-      Quagga.stop();
-      iniciarCamara(); // reactivar cámara
+      document.getElementById("precio").value = "";
+      document.getElementById("total").innerText = "0";
     }
 
-    // Agregar producto al carrito
+    // Volver a escanear
+    function volverEscanear() {
+      scanner.clear();
+      iniciarScanner();
+    }
+
+    // Agregar producto a la suma
     function agregarProducto() {
-      if (!productoActual) {
-        alert("Primero escanea un producto válido");
-        return;
-      }
-      let gramos = parseFloat(document.getElementById("peso").value);
-      if (isNaN(gramos) || gramos <= 0) {
-        alert("Ingrese un peso válido en gramos");
-        return;
-      }
-
-      let kilos = gramos / 1000;
-      let total = kilos * productoActual.precio;
-
-      let item = { nombre: productoActual.nombre, gramos, total };
-      carrito.push(item);
-
-      renderCarrito();
-      volverACamara();
+      const peso = parseFloat(document.getElementById("peso").value) || 0;
+      const precio = parseFloat(document.getElementById("precio").value) || 0;
+      const total = (peso / 1000) * precio;
+      suma += total;
+      document.getElementById("suma").innerText = suma.toFixed(2);
+      volverEscanear();
     }
 
-    // Renderizar carrito
-    function renderCarrito() {
-      let lista = document.getElementById("carrito");
-      lista.innerHTML = "";
+    // Calcular total en vivo
+    document.getElementById("peso").addEventListener("input", calcularTotal);
+    document.getElementById("precio").addEventListener("input", calcularTotal);
 
-      carrito.forEach((item, index) => {
-        let li = document.createElement("li");
-        li.innerHTML = `${item.nombre} - ${item.gramos} g - $${item.total.toFixed(2)}
-                        <button class="eliminar" onclick="eliminarProducto(${index})">❌</button>`;
-        lista.appendChild(li);
-      });
-
-      let suma = carrito.reduce((acc, p) => acc + p.total, 0);
-      document.getElementById("carrito-total").innerText = "Total: $" + suma.toFixed(2);
+    function calcularTotal() {
+      const peso = parseFloat(document.getElementById("peso").value) || 0;
+      const precio = parseFloat(document.getElementById("precio").value) || 0;
+      const total = (peso / 1000) * precio;
+      document.getElementById("total").innerText = total.toFixed(2);
     }
 
-    // Eliminar producto del carrito
-    function eliminarProducto(index) {
-      carrito.splice(index, 1);
-      renderCarrito();
-    }
-
-    // Iniciar cámara apenas carga la página
-    window.addEventListener("load", iniciarCamara);
+    // Inicia con la cámara activa
+    window.onload = iniciarScanner;
   </script>
+
 </body>
 </html>
+
+
