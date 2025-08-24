@@ -1,61 +1,86 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Calculadora de Precio</title>
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #scanner { width: 100%; max-width: 400px; margin: auto; border: 2px solid #333; }
+    #resultado, #scan-result { font-weight: bold; margin-top: 10px; }
+  </style>
 </head>
 <body>
   <h2>Calcular Precio por Peso</h2>
 
   <!-- Escáner -->
-  <div id="reader" style="width:300px;"></div>
+  <div id="scanner"></div>
   <p id="scan-result">Esperando escaneo...</p>
 
   <!-- Entrada de peso -->
-  <label>Peso (kg):</label>
-  <input type="number" id="peso" step="0.01"><br><br>
+  <label>Peso (g):</label>
+  <input type="number" id="peso" step="1"><br><br>
   <button onclick="calcular()">Calcular</button>
   <p id="resultado"></p>
 
   <script>
     // Base de productos registrados
     const productos = {
-      "123456789": { nombre: "Manzanas", precio: 500 },  // código -> precio por kilo
-      "987654321": { nombre: "Naranjas", precio: 400 },
-      "qrcode123": { nombre: "Bananas", precio: 350 }
+      "123456789012": { nombre: "Manzanas", precio: 500 },   // precio por kilo
+      "987654321098": { nombre: "Naranjas", precio: 400 },
+      "qrcode123":    { nombre: "Bananas", precio: 350 }
     };
 
     let productoActual = null;
 
-    // Inicializar escáner
-    function onScanSuccess(decodedText, decodedResult) {
-      if(productos[decodedText]){
-        productoActual = productos[decodedText];
+    // Inicializar Quagga para leer códigos de barras
+    Quagga.init({
+      inputStream: {
+        type: "LiveStream",
+        constraints: {
+          facingMode: "environment" // usar cámara trasera
+        }
+      },
+      decoder: {
+        readers: ["ean_reader", "upc_reader", "code128_reader", "code39_reader", "ean_8_reader"]
+      }
+    }, function(err) {
+      if (err) {
+        console.error(err);
+        return;
+      }
+      Quagga.start();
+    });
+
+    // Detectar código de barras
+    Quagga.onDetected(function(result) {
+      const code = result.codeResult.code;
+      if (productos[code]) {
+        productoActual = productos[code];
         document.getElementById("scan-result").innerText = 
           "Producto: " + productoActual.nombre + " - $" + productoActual.precio + " por kilo";
       } else {
-        document.getElementById("scan-result").innerText = 
-          "Código no registrado: " + decodedText;
+        document.getElementById("scan-result").innerText = "Código no registrado: " + code;
       }
-    }
-
-    const html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start(
-      { facingMode: "environment" }, // usar cámara trasera
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
+    });
 
     // Calcular precio
     function calcular() {
-      if(!productoActual){
+      if (!productoActual) {
         alert("Primero escanea un producto válido");
         return;
       }
-      let peso = parseFloat(document.getElementById("peso").value);
-      let total = peso * productoActual.precio;
+      let gramos = parseFloat(document.getElementById("peso").value);
+      if (isNaN(gramos) || gramos <= 0) {
+        alert("Ingrese un peso válido en gramos");
+        return;
+      }
+
+      let kilos = gramos / 1000; // convertir gramos a kilos
+      let total = kilos * productoActual.precio;
+
       document.getElementById("resultado").innerText = 
-        "Total a pagar por " + peso + " kg de " + productoActual.nombre + ": $" + total.toFixed(2);
+        "Total a pagar por " + gramos + " g de " + productoActual.nombre + ": $" + total.toFixed(2);
     }
   </script>
 </body>
